@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { Resend } from "resend";
 import { contactFormSchema } from "@/lib/validation";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
@@ -19,20 +22,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // TODO: Integrate email service (e.g., SendGrid, Resend, etc.)
-    // For now, log the submission
-    console.log("Contact form submission:", {
-      name: result.data.name,
-      organization: result.data.organization,
-      email: result.data.email,
-      subject: result.data.subject,
-      message: result.data.message,
+    const { name, organization, email, subject, message } = result.data;
+
+    await resend.emails.send({
+      from: "UTCLA Contact Form <contact@utcla.org>",
+      to: "contact@utcla.org",
+      replyTo: email,
+      subject: `[UTCLA Contact] ${subject}`,
+      text: [
+        `Name: ${name}`,
+        organization ? `Organisation: ${organization}` : null,
+        `Email: ${email}`,
+        `Subject: ${subject}`,
+        "",
+        "Message:",
+        message,
+      ]
+        .filter(Boolean)
+        .join("\n"),
     });
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Contact form error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to send message" },
       { status: 500 }
     );
   }
